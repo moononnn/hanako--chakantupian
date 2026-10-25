@@ -1,0 +1,19 @@
+# 打包与测试产物
+dist/
+dist-extensions/
+*.entry.json
+*.skill
+*.zip
+
+# 本地验证用
+.test-renderer/
+
+# 编辑器
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# 系统
+*.bak
+index.html.hdiz.bak
