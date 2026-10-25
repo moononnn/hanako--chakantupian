@@ -1,5 +1,7 @@
 # 上架 Hana 官方市场 · 登记清单
 
+> **状态（2026-10-25）**：市场登记 PR 已提交 —— https://github.com/liliMozi/hana-marketplace/pull/147 （CI `validate-pr` 已通过）。等待维护者审核合并；合并后发布工作流更新 `index.v2.json`，客户端才会刷出新条目。下文保留作备案。
+
 包已经打好、Release 也发好了，这一页剩下的是提市场 PR 那几步。
 
 ## 已完成
