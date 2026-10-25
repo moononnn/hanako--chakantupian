@@ -6,8 +6,8 @@
 
 | 项 | 值 |
 |---|---|
-| 仓库 | https://github.com/moononnn/hana-draft-image-zoom |
-| Release | https://github.com/moononnn/hana-draft-image-zoom/releases/tag/v1.0.0 |
+| 仓库 | https://github.com/moononnn/hanako--chakantupian |
+| Release | https://github.com/moononnn/hanako--chakantupian/releases/tag/v1.0.0 |
 | 入口条目附件 | `skill-hana-draft-image-zoom.entry.json` |
 | 安装包附件 | `skill-hana-draft-image-zoom-e388d163ff936f884a48720095c062e97712a943ee7429a2a496627153ddd588.zip` |
 | `archive.sha256` | `e388d163ff936f884a48720095c062e97712a943ee7429a2a496627153ddd588` |
@@ -16,6 +16,8 @@
 | kind / id | `skill` / `hana-draft-image-zoom` |
 
 回下载核验已做：从 Release 拉回 zip 重算 SHA-256，与 entry.json 逐位一致，大小一致。zip 结构为无顶层目录的 5 个文件：`SKILL.md` / `LICENSE` / `assets/icon.png` / `scripts/draft-image-zoom.js` / `scripts/install.ps1`。
+
+> 仓库名以作者建的 `hanako--chakantupian` 为准；市场条目里的 skill id 仍是 `hana-draft-image-zoom`——id 由包内容决定，与仓库名无关，所以搬家不影响登记。
 
 已确认：市场里没有本 id 的重复登记，也没有针对本 id 的 open PR。
 
@@ -41,7 +43,7 @@ git checkout -b register/hana-draft-image-zoom-v1.0.0 upstream/main
 {
   "kind": "skill",
   "id": "hana-draft-image-zoom",
-  "repository": "moononnn/hana-draft-image-zoom",
+  "repository": "moononnn/hanako--chakantupian",
   "publisher": "moononnn & 小花"
 }
 ```
@@ -77,7 +79,7 @@ gh api repos/liliMozi/hana-marketplace/contents/approvals.json --jq '.content'
 PR 正文按仓库模板填这四栏：
 
 - **基本信息**：名称「草稿图片放大 · 点一下看大图」、类型 skill、ID `hana-draft-image-zoom`、发布者 `moononnn & 小花`、用途、仓库与 Release 链接
-- **图标预览**：把 `assets/icon.png` 拖进 PR 正文框，或插入 https://github.com/moononnn/hana-draft-image-zoom/raw/main/assets/icon.png
+- **图标预览**：把 `assets/icon.png` 拖进 PR 正文框，或插入 https://github.com/moononnn/hanako--chakantupian/raw/main/assets/icon.png
 - **截图或演示**：贴一张「点缩略图弹出全屏预览」的图；没有现成截图就明说没贴
 - **自测报告**：见下
 - **权限与外部服务**：无
