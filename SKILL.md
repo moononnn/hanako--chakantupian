@@ -1,6 +1,10 @@
 ---
 name: hana-draft-image-zoom
 description: "给 Hana 聊天输入框里粘贴/附加的图片缩略图加上点击放大查看。安装一个小脚本到 Hana 的 renderer 目录，点输入框里的图片就能全屏看大图，还支持多图左右切换、滚轮缩放、Esc 关闭，不改 Hana 源码、不动官方安装包。MANDATORY TRIGGERS：输入框图片放大、贴图放大、草稿图片预览、输入框里贴的图看不清、点图片放大、draft image zoom、Hana 输入框图片点不开、把图片放大功能装一下、装草稿图片放大。SOFT TRIGGERS：粘贴的图太小、想确认贴对没、看大图、图片预览补丁。"
+metadata:
+  author: "moononnn & 小花"
+  minAppVersion: "0.82.0"
+  icon: "assets/icon.png"
 ---
 
 # Hana 草稿图片放大
