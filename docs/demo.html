@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>草稿图片放大 · 本地演示</title>
+<style>
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: #14161a;
+    font-family: system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+    color: #e8e8ea;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .demo {
+    width: 760px;
+    background: #1d2026;
+    border: 1px solid #2b2f37;
+    border-radius: 14px;
+    padding: 18px 20px 22px;
+  }
+  .demo h1 { font-size: 15px; font-weight: 600; margin: 0 0 4px; color: #cfd3da; }
+  .demo p  { font-size: 12.5px; margin: 0 0 14px; color: #8b929e; }
+  .composer {
+    background: #24272e;
+    border: 1px solid #343842;
+    border-radius: 12px;
+    padding: 12px;
+  }
+  .composer .input {
+    height: 22px;
+    color: #6d747f;
+    font-size: 13px;
+    padding: 2px 4px 10px;
+  }
+  .chips { display: flex; gap: 10px; }
+  .media-attachment-chip {
+    width: 56px; height: 56px;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #2f333b;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .media-attachment-chip img { width: 100%; height: 100%; object-fit: cover; display: block; }
+</style>
+</head>
+<body>
+  <div class="demo">
+    <h1>Hana 聊天输入框 · 草稿区</h1>
+    <p>下面是模拟的输入框草稿区：两张贴图只显示小缩略图。点任意一张即可全屏预览（← → 切换，滚轮缩放，Esc 关闭）。</p>
+    <div class="composer">
+      <div class="input">刚刚粘贴的两张图…</div>
+      <div class="chips">
+        <div class="media-attachment-chip"><img alt=""></div>
+        <div class="media-attachment-chip"><img alt=""></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+// 用真实脚本（同一份 scripts/draft-image-zoom.js）渲染，这里只负责造出草稿缩略图的 DOM
+(function () {
+  var art = [
+    '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800">' +
+      '<defs><linearGradient id="a" x1="0" y1="0" x2="1" y2="1">' +
+      '<stop offset="0" stop-color="#ffb56b"/><stop offset="1" stop-color="#c65f8e"/></linearGradient></defs>' +
+      '<rect width="1200" height="800" fill="url(#a)"/>' +
+      '<circle cx="930" cy="200" r="110" fill="#fff3c4" opacity=".85"/>' +
+      '<path d="M0 800 L360 380 L620 800 Z" fill="#5b3a6e" opacity=".8"/>' +
+      '<path d="M420 800 L760 300 L1200 800 Z" fill="#331f47" opacity=".85"/>' +
+    '</svg>',
+    '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800">' +
+      '<defs><linearGradient id="b" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0" stop-color="#8fd4ff"/><stop offset="1" stop-color="#2a5c8f"/></linearGradient></defs>' +
+      '<rect width="1200" height="800" fill="url(#b)"/>' +
+      '<rect x="140" y="180" width="420" height="300" rx="18" fill="#e9f6ff" opacity=".9"/>' +
+      '<rect x="620" y="260" width="440" height="240" rx="18" fill="#0f2d47" opacity=".85"/>' +
+      '<circle cx="300" cy="560" r="70" fill="#ffd166" opacity=".9"/>' +
+    '</svg>'
+  ];
+  var imgs = document.querySelectorAll('.media-attachment-chip img');
+  for (var i = 0; i < imgs.length; i++) {
+    imgs[i].src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(art[i]);
+  }
+  var s = document.createElement('script');
+  s.src = '../scripts/draft-image-zoom.js';
+  s.onload = function () {
+    if (location.search.indexOf('noopen') >= 0) return;
+    setTimeout(function () {
+      document.querySelector('.media-attachment-chip').click();
+    }, 250);
+  };
+  document.body.appendChild(s);
+})();
+</script>
+</body>
+</html>
