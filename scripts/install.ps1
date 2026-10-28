@@ -1,156 +1,177 @@
-﻿<#
-  草稿图片放大 · 安装 / 卸载 / 状态检查脚本
-  兼容 Windows PowerShell 5.1 与 PowerShell 7+。
-
-  用法：
-    安装：        powershell -NoProfile -File install.ps1
-    卸载：        powershell -NoProfile -File install.ps1 -Uninstall
-    状态检查：    powershell -NoProfile -File install.ps1 -Check
-    指定目录：    powershell -NoProfile -File install.ps1 -RendererDir "C:\Users\xxx\.hanako\artifacts\renderer\1.1.35-beta-..."
-
-  做的事：把 draft-image-zoom.js 放进 renderer 的 modules\ 目录，并在 index.html 的
-  </body> 前插一行 script 标签。只改这两个文件；index.html 首次改动会留备份，
-  可用 -Restore 从备份还原。
-#>
+﻿# Hana draft image zoom - installer for the skill package.
+#
+# WHY ASCII ONLY, UTF-8 WITH BOM, CRLF:
+# Windows PowerShell 5.1 (powershell.exe) decodes a BOM-less UTF-8 script with
+# the system ANSI code page (GBK on zh-CN). A multi-byte character right before a
+# newline can swallow that newline, so the following line silently becomes part of
+# a comment. That destroys the param block, the request degrades into something
+# else, and the caller reports success while nothing happened. Keep this file
+# pure ASCII, save it as UTF-8 WITH BOM, keep CRLF endings.
+#
+# Usage:
+#   powershell -NoProfile -File install.ps1                     install
+#   powershell -NoProfile -File install.ps1 -Check              status only
+#   powershell -NoProfile -File install.ps1 -Uninstall           remove
+#   powershell -NoProfile -File install.ps1 -Restore             restore from backup
+#   powershell -NoProfile -File install.ps1 -RendererDir "<dir>"  explicit renderer dir
+#
+# Env fallbacks: HDIZ_ACTION (install|status|uninstall|restore), HDIZ_ROOT.
+# The last stdout line is always: STATUS: installed=<bool> version=<v> dir=<path>
 param(
   [switch]$Uninstall,
   [switch]$Check,
   [switch]$Restore,
-  [string]$RendererDir = ""
+  [string]$RendererDir = '',
+  [string]$RendererRoot = '',
+  [string]$Action = ''
 )
 
 $ErrorActionPreference = 'Stop'
+try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
 
-$scriptTag  = '<script src="modules/draft-image-zoom.js" data-hdiz="1"></script>'
 $scriptFile = 'draft-image-zoom.js'
-$targetRel  = 'modules\draft-image-zoom.js'
-$sourceJs   = Join-Path $PSScriptRoot $scriptFile
-$utf8NoBom  = New-Object System.Text.UTF8Encoding($false)
+$scriptTag = '<script src="modules/draft-image-zoom.js" data-hdiz="1"></script>'
+$sourceJs = Join-Path $PSScriptRoot $scriptFile
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+
+function Resolve-Action {
+  if ($Uninstall) { return 'uninstall' }
+  if ($Restore) { return 'restore' }
+  if ($Check) { return 'status' }
+  if ($Action) { return $Action.Trim().ToLowerInvariant() }
+  if ($env:HDIZ_ACTION) { return $env:HDIZ_ACTION.Trim().ToLowerInvariant() }
+  return 'install'
+}
+
+function Resolve-Root {
+  if ($RendererRoot) { return $RendererRoot }
+  if ($env:HDIZ_ROOT) { return $env:HDIZ_ROOT }
+  return (Join-Path $env:USERPROFILE '.hanako\artifacts\renderer')
+}
+
+function Get-Version([string]$dirName) {
+  if ($dirName -match '^(\d+\.\d+\.\d+[^-]*(?:-[a-z]+)?)') { return $Matches[1] }
+  return $dirName
+}
 
 function Get-RendererDir {
-  param([string]$explicit)
+  param([string]$explicit, [string]$root)
   if ($explicit) {
     if (-not (Test-Path -LiteralPath (Join-Path $explicit 'index.html'))) {
-      throw "指定目录里没有 index.html：$explicit"
+      throw "no index.html in the given renderer dir: $explicit"
     }
     return (Resolve-Path -LiteralPath $explicit).Path
   }
-
-  $root = Join-Path $env:USERPROFILE '.hanako\artifacts\renderer'
   if (-not (Test-Path -LiteralPath $root)) {
-    throw "找不到 renderer 目录：$root（Hana 可能还没启动过一次）"
+    throw "renderer root not found: $root (start Hana once, then retry)"
   }
-
-  $candidates = Get-ChildItem -LiteralPath $root -Directory |
+  $candidates = Get-ChildItem -LiteralPath $root -Directory -ErrorAction SilentlyContinue |
     Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'index.html') } |
     Sort-Object LastWriteTime -Descending
-
-  if (-not $candidates) { throw "renderer 目录里没有可用版本：$root" }
+  if (-not $candidates) { throw "no usable renderer version under: $root" }
   return $candidates[0].FullName
 }
 
-$renderer = Get-RendererDir -explicit $RendererDir
-$indexPath    = Join-Path $renderer 'index.html'
-$targetJs     = Join-Path $renderer $targetRel
-$backupPath   = Join-Path $renderer 'index.html.hdiz.bak'
-$versionName  = Split-Path -Leaf $renderer
-
-$html = Get-Content -LiteralPath $indexPath -Raw -Encoding UTF8
-$hasTag = $html -match 'data-hdiz="1"'
-$hasJs  = Test-Path -LiteralPath $targetJs
-
-function Write-Status {
-  param([string]$Label, [string]$Value)
-  Write-Host ("{0}：{1}" -f $Label, $Value)
+function Read-State([string]$dir) {
+  $index = Join-Path $dir 'index.html'
+  $html = Get-Content -LiteralPath $index -Raw -Encoding UTF8
+  $scriptPath = Join-Path $dir ('modules\' + $scriptFile)
+  $scriptPresent = Test-Path -LiteralPath $scriptPath
+  $injected = $html -match 'data-hdiz="1"'
+  return @{
+    installed = ($scriptPresent -and $injected)
+    scriptPresent = $scriptPresent
+    injected = $injected
+    version = (Get-Version (Split-Path -Leaf $dir))
+    dir = $dir
+  }
 }
 
-# ---------- 状态检查 ----------
-if ($Check) {
-  Write-Host ''
-  Write-Status 'renderer' $renderer
-  Write-Status '版本目录' $versionName
-  Write-Status '注入标签' $(if ($hasTag) { '已注入' } else { '未注入' })
-  Write-Status '脚本文件' $(if ($hasJs) { '已就位' } else { '缺失' })
-  Write-Status '备份文件' $(if (Test-Path -LiteralPath $backupPath) { $backupPath } else { '无' })
-  Write-Status '当前状态' $(if ($hasTag -and $hasJs) { '已安装' } else { '未安装' })
-  if (-not $hasTag -or -not $hasJs) {
-    Write-Host ''
-    Write-Host '如需安装：powershell -NoProfile -File install.ps1'
-  }
-  Write-Host ''
-  exit 0
+function Write-Status($state) {
+  Write-Host ("STATUS: installed=" + $state.installed + " version=" + $state.version + " dir=" + $state.dir)
 }
 
-# ---------- 还原 ----------
-if ($Restore) {
-  if (-not (Test-Path -LiteralPath $backupPath)) {
-    throw "找不到备份：$backupPath"
+$action = Resolve-Action
+$root = Resolve-Root
+
+try {
+  switch ($action) {
+    'status' {
+      $dir = Get-RendererDir -explicit $RendererDir -root $root
+      $state = Read-State $dir
+      Write-Status $state
+      exit 0
+    }
+    'install' {
+      if (-not (Test-Path -LiteralPath $sourceJs)) {
+        throw "missing $scriptFile next to this script"
+      }
+      $dir = Get-RendererDir -explicit $RendererDir -root $root
+      $modulesDir = Join-Path $dir 'modules'
+      if (-not (Test-Path -LiteralPath $modulesDir)) {
+        New-Item -ItemType Directory -Path $modulesDir | Out-Null
+      }
+      Copy-Item -LiteralPath $sourceJs -Destination (Join-Path $modulesDir $scriptFile) -Force
+
+      $index = Join-Path $dir 'index.html'
+      $html = Get-Content -LiteralPath $index -Raw -Encoding UTF8
+      if ($html -notmatch 'data-hdiz="1"') {
+        $backup = $index + '.hdiz.bak'
+        if (-not (Test-Path -LiteralPath $backup)) {
+          Copy-Item -LiteralPath $index -Destination $backup -Force
+        }
+        if ($html -match '</body>') {
+          $html = [regex]::Replace($html, '</body>', "    $scriptTag`r`n</body>", 1)
+        } else {
+          $html = $html + "`r`n" + $scriptTag + "`r`n"
+        }
+        [System.IO.File]::WriteAllText($index, $html, $utf8NoBom)
+      }
+
+      # Read the files back: an unverified "done" is exactly the lie we are fixing.
+      $state = Read-State $dir
+      if (-not $state.installed) {
+        Write-Status $state
+        Write-Host 'INSTALL_FAILED: the script tag or the js file is not in place.'
+        exit 1
+      }
+      Write-Status $state
+      Write-Host 'Installed. Quit Hana completely (tray too) and start it again.'
+      exit 0
+    }
+    'uninstall' {
+      $dir = Get-RendererDir -explicit $RendererDir -root $root
+      $index = Join-Path $dir 'index.html'
+      $html = Get-Content -LiteralPath $index -Raw -Encoding UTF8
+      if ($html -match 'data-hdiz="1"') {
+        $html = [regex]::Replace($html, '\s*<script[^>]*data-hdiz="1"[^>]*></script>', '')
+        [System.IO.File]::WriteAllText($index, $html, $utf8NoBom)
+      }
+      $scriptPath = Join-Path $dir ('modules\' + $scriptFile)
+      if (Test-Path -LiteralPath $scriptPath) { Remove-Item -LiteralPath $scriptPath -Force }
+      $state = Read-State $dir
+      Write-Status $state
+      Write-Host 'Removed. Quit Hana completely (tray too) and start it again.'
+      exit 0
+    }
+    'restore' {
+      $dir = Get-RendererDir -explicit $RendererDir -root $root
+      $backup = (Join-Path $dir 'index.html') + '.hdiz.bak'
+      if (-not (Test-Path -LiteralPath $backup)) { throw "no backup found: $backup" }
+      Copy-Item -LiteralPath $backup -Destination (Join-Path $dir 'index.html') -Force
+      $scriptPath = Join-Path $dir ('modules\' + $scriptFile)
+      if (Test-Path -LiteralPath $scriptPath) { Remove-Item -LiteralPath $scriptPath -Force }
+      $state = Read-State $dir
+      Write-Status $state
+      Write-Host 'Restored from backup. Quit Hana completely (tray too) and start it again.'
+      exit 0
+    }
+    default {
+      Write-Host "BAD_ACTION: unknown action '$action' (use install|status|uninstall|restore)"
+      exit 2
+    }
   }
-  Copy-Item -LiteralPath $backupPath -Destination $indexPath -Force
-  Write-Host "已从备份还原：$indexPath"
-  if (Test-Path -LiteralPath $targetJs) {
-    Remove-Item -LiteralPath $targetJs -Force
-    Write-Host "已删除脚本：$targetJs"
-  }
-  Write-Host '还原完成。完全退出 Hana 再启动。'
-  exit 0
+} catch {
+  Write-Host ('FAILED: ' + (String($_.Exception.Message)).Substring(0, [Math]::Min(200, (String($_.Exception.Message)).Length)))
+  exit 1
 }
-
-# ---------- 卸载 ----------
-if ($Uninstall) {
-  if (Test-Path -LiteralPath $backupPath) {
-    # 有备份就整份还原，保证卸载后 index.html 与安装前一模一样
-    Copy-Item -LiteralPath $backupPath -Destination $indexPath -Force
-    Write-Host "已用备份还原 index.html：$indexPath"
-  } elseif ($hasTag) {
-    $html = [regex]::Replace($html, '\s*<script[^>]*data-hdiz="1"[^>]*></script>', '')
-    [System.IO.File]::WriteAllText($indexPath, $html, $utf8NoBom)
-    Write-Host "已从 index.html 移除注入行：$indexPath"
-  } else {
-    Write-Host 'index.html 里没有注入行，也没有备份，跳过。'
-  }
-  if ($hasJs) {
-    Remove-Item -LiteralPath $targetJs -Force
-    Write-Host "已删除脚本：$targetJs"
-  }
-  Write-Host '卸载完成。完全退出 Hana 再启动（托盘也要退）。'
-  exit 0
-}
-
-# ---------- 安装 ----------
-if (-not (Test-Path -LiteralPath $sourceJs)) {
-  throw "同目录下找不到 $scriptFile，请把两个文件放在一起。"
-}
-
-# 1. 放脚本
-$modulesDir = Join-Path $renderer 'modules'
-if (-not (Test-Path -LiteralPath $modulesDir)) {
-  New-Item -ItemType Directory -Path $modulesDir | Out-Null
-}
-Copy-Item -LiteralPath $sourceJs -Destination $targetJs -Force
-Write-Host "已复制脚本：$targetJs"
-
-# 2. 改 index.html（幂等）
-if ($hasTag) {
-  Write-Host 'index.html 已有注入行，跳过。'
-} else {
-  if (-not (Test-Path -LiteralPath $backupPath)) {
-    Copy-Item -LiteralPath $indexPath -Destination $backupPath -Force
-    Write-Host "已备份：$backupPath"
-  }
-
-  if ($html -match '</body>') {
-    $html = [regex]::Replace($html, '</body>', "    $scriptTag`r`n</body>", 1)
-  } else {
-    $html = $html + "`r`n" + $scriptTag + "`r`n"
-  }
-
-  [System.IO.File]::WriteAllText($indexPath, $html, $utf8NoBom)
-  Write-Host "已注入 index.html：$indexPath"
-}
-
-Write-Host ''
-Write-Host "安装完成（renderer 版本目录：$versionName）。"
-Write-Host '完全退出 Hana 再启动（托盘图标也要退干净），然后在输入框粘贴一张图点缩略图试试。'
-Write-Host '不想要了就运行：powershell -NoProfile -File install.ps1 -Uninstall'
-Write-Host '出问题了可以还原：powershell -NoProfile -File install.ps1 -Restore'
